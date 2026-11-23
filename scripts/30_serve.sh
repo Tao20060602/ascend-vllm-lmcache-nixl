@@ -66,8 +66,11 @@ fi
 # (LEGACY_IPC 模式),否则 vllm 校验直接拒绝(extensible KV cache 仅 CUDA/ROCm)
 if [ "$PROFILE" = "cpu" ]; then
   KV_TF_CONFIG="{\"kv_connector\": \"$KV_CONNECTOR\", \"kv_role\": \"kv_both\", \"kv_connector_extra_config\": {\"lmcache.mp.use_vmm_api\": false}}"
+  # use_vmm_api=false 走 LEGACY_IPC,worker 以 engine_driven 模式注册,server 需显式启用
+  SRV_MODE_ARGS="--supported-transfer-mode engine_driven"
 else
   KV_TF_CONFIG="{\"kv_connector\": \"$KV_CONNECTOR\", \"kv_role\": \"kv_both\"}"
+  SRV_MODE_ARGS=""
 fi
 
 # 2) 启动 lmcache server(MP 模式必需的独立进程;CPU/NPU 共用上游 CLI)
@@ -75,6 +78,7 @@ nohup lmcache server \
   --chunk-size "$CHUNK_SIZE" \
   --l1-size-gb "$L1_SIZE_GB" \
   --eviction-policy LRU \
+  $SRV_MODE_ARGS \
   > "$RUNDIR/lmcache_server.log" 2>&1 < /dev/null &
 echo $! > "$RUNDIR/lmcache_server.pid"
 sleep 5
