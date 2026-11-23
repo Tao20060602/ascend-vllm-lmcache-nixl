@@ -28,6 +28,12 @@ if [ ! -d "$MODEL_DIR" ]; then
   exit 1
 fi
 
+# CPU 档环境:激活 venv(11_install_cpu_stack.sh 创建);NPU 档环境不受影响
+if [ -f "$HOME/venv-vllm-cpu/bin/activate" ]; then
+  # shellcheck disable=SC1091
+  source "$HOME/venv-vllm-cpu/bin/activate"
+fi
+
 # 1) 渲染 LMCache 配置(l3 模板中的 @STORAGE_DIR@ 替换为实际路径)
 mkdir -p "$STORAGE_DIR"
 if [ "$STAGE" = "l3" ]; then
