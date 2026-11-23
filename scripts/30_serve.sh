@@ -12,6 +12,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/../versions.env"
 
 STAGE="${STAGE:-l3}"
+PROFILE="${PROFILE:-npu}"   # npu=vllm-ascend+LMCacheMPConnector(独立 lmcache server); cpu=上游 LMCacheConnectorV1(进程内)
 TP="${TP:-1}"
 PORT="${PORT:-8900}"
 L1_SIZE_GB="${L1_SIZE_GB:-8}"
@@ -37,21 +38,31 @@ fi
 export LMCACHE_CONFIG_FILE="$RUNDIR/lmcache.yaml"
 echo "LMCache 配置: $LMCACHE_CONFIG_FILE"
 
-# 2) 启动 lmcache server(MP 模式的独立 KV 服务进程,默认监听 localhost:5555,以日志为准)
-nohup lmcache server \
-  --chunk-size "$CHUNK_SIZE" \
-  --l1-size-gb "$L1_SIZE_GB" \
-  --eviction-policy LRU \
-  > "$RUNDIR/lmcache_server.log" 2>&1 < /dev/null &
-echo $! > "$RUNDIR/lmcache_server.pid"
-sleep 5
-LMC_PID=$(cat "$RUNDIR/lmcache_server.pid")
-if ! kill -0 "$LMC_PID" 2>/dev/null; then
-  echo "[错误] lmcache server 启动失败,日志末尾:" >&2
-  tail -n 30 "$RUNDIR/lmcache_server.log" >&2
-  exit 1
+if [ "$PROFILE" = "cpu" ]; then
+  # CPU 档:上游 LMCache 进程内连接器,无独立 lmcache server 进程
+  KV_CONNECTOR="LMCacheConnectorV1"
+  echo "PROFILE=cpu: 连接器 $KV_CONNECTOR(进程内,不启动 lmcache server)"
+else
+  KV_CONNECTOR="LMCacheMPConnector"
 fi
-echo "lmcache server 已启动, PID=$LMC_PID, 日志=$RUNDIR/lmcache_server.log"
+
+# 2) NPU 档启动 lmcache server(MP 模式的独立 KV 服务进程,默认监听 localhost:5555,以日志为准);CPU 档跳过
+if [ "$PROFILE" = "npu" ]; then
+  nohup lmcache server \
+    --chunk-size "$CHUNK_SIZE" \
+    --l1-size-gb "$L1_SIZE_GB" \
+    --eviction-policy LRU \
+    > "$RUNDIR/lmcache_server.log" 2>&1 < /dev/null &
+  echo $! > "$RUNDIR/lmcache_server.pid"
+  sleep 5
+  LMC_PID=$(cat "$RUNDIR/lmcache_server.pid")
+  if ! kill -0 "$LMC_PID" 2>/dev/null; then
+    echo "[错误] lmcache server 启动失败,日志末尾:" >&2
+    tail -n 30 "$RUNDIR/lmcache_server.log" >&2
+    exit 1
+  fi
+  echo "lmcache server 已启动, PID=$LMC_PID, 日志=$RUNDIR/lmcache_server.log"
+fi
 
 # 3) 启动 vllm serve
 #    --no-enable-prefix-caching:vllm 引擎内前缀缓存交给 LMCache 管理(官方示例同款)
@@ -66,7 +77,7 @@ nohup vllm serve "$MODEL_DIR" \
   --no-enable-prefix-caching \
   --enforce-eager \
   --port "$PORT" \
-  --kv-transfer-config '{"kv_connector": "LMCacheMPConnector", "kv_role": "kv_both"}' \
+  --kv-transfer-config "{\"kv_connector\": \"$KV_CONNECTOR\", \"kv_role\": \"kv_both\"}" \
   > "$RUNDIR/vllm.log" 2>&1 < /dev/null &
 echo $! > "$RUNDIR/vllm.pid"
 sleep 8
