@@ -15,6 +15,8 @@ STAGE="${STAGE:-l3}"
 PROFILE="${PROFILE:-npu}"   # npu=vllm-ascend+LMCacheMPConnector(独立 lmcache server); cpu=上游 LMCacheConnectorV1(进程内)
 TP="${TP:-1}"
 PORT="${PORT:-8900}"
+# 内存利用率:NPU 档 0.85(显存池);CPU 档 0.30(CPU KV 池预算按整机内存折算,超配会启动失败)
+if [ "$PROFILE" = "cpu" ]; then MEM_UTIL="${MEM_UTIL:-0.30}"; else MEM_UTIL="${MEM_UTIL:-0.85}"; fi
 L1_SIZE_GB="${L1_SIZE_GB:-8}"
 CHUNK_SIZE="${CHUNK_SIZE:-128}"
 MODEL_ROOT="${MODEL_ROOT:-$HOME/models}"
@@ -85,7 +87,7 @@ nohup vllm serve "$MODEL_DIR" \
   --max-model-len 8192 \
   --max-num-batched-tokens 4096 \
   --tensor-parallel-size "$TP" \
-  --gpu-memory-utilization 0.85 \
+  --gpu-memory-utilization "$MEM_UTIL" \
   --no-enable-prefix-caching \
   --enforce-eager \
   --port "$PORT" \
