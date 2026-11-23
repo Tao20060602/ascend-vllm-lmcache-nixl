@@ -46,37 +46,44 @@ fi
 export LMCACHE_CONFIG_FILE="$RUNDIR/lmcache.yaml"
 echo "LMCache 配置: $LMCACHE_CONFIG_FILE"
 
+# 连接器统一走 MP 模式:vLLM 0.34 内置 LMCacheConnectorV1 默认分支导入的
+# lmcache.integration.vllm.vllm_v1_adapter 在 lmcache 0.5.8 已被删除(0.5.6 尚存),
+# 且 vllm requirements/kv_connectors.txt 声明的范围是 lmcache>=0.5.6,按其声明装最新必炸
+# (已确认 LMCacheMPConnector 为官方替代,依赖 vllm_multi_process_adapter,0.5.8 中存在)
+KV_CONNECTOR="LMCacheMPConnector"
+echo "连接器: $KV_CONNECTOR(MP 模式,需独立 lmcache server 进程)"
+
 if [ "$PROFILE" = "cpu" ]; then
-  # CPU 档:上游 LMCache 进程内连接器,无独立 lmcache server 进程
-  KV_CONNECTOR="LMCacheConnectorV1"
-  echo "PROFILE=cpu: 连接器 $KV_CONNECTOR(进程内,不启动 lmcache server)"
   # 容器 /dev/shm 常为 64 MiB,vLLM 引擎核共享内存环缓冲需 160 MiB 以上,不足则重挂载
   SHM_FREE=$(df -k /dev/shm 2>/dev/null | awk 'NR==2{print $4}')
   if [ -n "${SHM_FREE:-}" ] && [ "$SHM_FREE" -lt 262144 ]; then
     echo "/dev/shm 可用 ${SHM_FREE} KiB 不足,重挂载为 8 GiB(sudo)"
     sudo mount -o remount,size=8G /dev/shm || echo "[warn] /dev/shm 重挂载失败,vLLM 可能启动失败"
   fi
-else
-  KV_CONNECTOR="LMCacheMPConnector"
 fi
 
-# 2) NPU 档启动 lmcache server(MP 模式的独立 KV 服务进程,默认监听 localhost:5555,以日志为准);CPU 档跳过
-if [ "$PROFILE" = "npu" ]; then
-  nohup lmcache server \
-    --chunk-size "$CHUNK_SIZE" \
-    --l1-size-gb "$L1_SIZE_GB" \
-    --eviction-policy LRU \
-    > "$RUNDIR/lmcache_server.log" 2>&1 < /dev/null &
+# 2) 启动 lmcache server(MP 模式必需的独立进程;CPU/NPU 共用上游 CLI)
+nohup lmcache server \
+  --chunk-size "$CHUNK_SIZE" \
+  --l1-size-gb "$L1_SIZE_GB" \
+  --eviction-policy LRU \
+  > "$RUNDIR/lmcache_server.log" 2>&1 < /dev/null &
+echo $! > "$RUNDIR/lmcache_server.pid"
+sleep 5
+LMC_PID=$(cat "$RUNDIR/lmcache_server.pid")
+if ! kill -0 "$LMC_PID" 2>/dev/null; then
+  echo "    带参启动失败,降级为无参(仅依赖 LMCACHE_CONFIG_FILE)"
+  nohup lmcache server > "$RUNDIR/lmcache_server.log" 2>&1 < /dev/null &
   echo $! > "$RUNDIR/lmcache_server.pid"
   sleep 5
   LMC_PID=$(cat "$RUNDIR/lmcache_server.pid")
-  if ! kill -0 "$LMC_PID" 2>/dev/null; then
-    echo "[错误] lmcache server 启动失败,日志末尾:" >&2
-    tail -n 30 "$RUNDIR/lmcache_server.log" >&2
-    exit 1
-  fi
-  echo "lmcache server 已启动, PID=$LMC_PID, 日志=$RUNDIR/lmcache_server.log"
 fi
+if ! kill -0 "$LMC_PID" 2>/dev/null; then
+  echo "[错误] lmcache server 启动失败,日志末尾:" >&2
+  tail -n 30 "$RUNDIR/lmcache_server.log" >&2
+  exit 1
+fi
+echo "lmcache server 已启动, PID=$LMC_PID, 日志=$RUNDIR/lmcache_server.log"
 
 # 3) 启动 vllm serve
 #    --no-enable-prefix-caching:vllm 引擎内前缀缓存交给 LMCache 管理(官方示例同款)
