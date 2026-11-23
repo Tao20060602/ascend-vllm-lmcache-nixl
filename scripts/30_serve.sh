@@ -42,7 +42,7 @@ if [ "$STAGE" = "l3" ]; then
   sed "s|@STORAGE_DIR@|$STORAGE_DIR|g" "$SCRIPT_DIR/../configs/lmcache_l3_nixl.yaml.template" > "$RUNDIR/lmcache.yaml"
   # lmcache 0.5.8 MP server:NIXL L3 走 --l2-adapter(legacy 文档的 nixl_* yaml 键会被静默忽略;
   # 实测无 --l2-adapter 时零落盘、server 日志零 nixl 行)。JSON 内不留空格以便无引号变量展开
-  L2_ADAPTER_ARGS="--l2-adapter {\"type\":\"nixl_store\",\"backend\":\"POSIX\",\"backend_params\":{\"file_path\":\"$STORAGE_DIR\",\"use_direct_io\":\"false\"},\"pool_size\":16}"
+  L2_ADAPTER_ARGS="--l2-adapter {\"type\":\"nixl_store\",\"backend\":\"POSIX\",\"backend_params\":{\"file_path\":\"$STORAGE_DIR\",\"use_direct_io\":\"false\"},\"pool_size\":512}"
 else
   cp "$SCRIPT_DIR/../configs/lmcache_l2.yaml" "$RUNDIR/lmcache.yaml"
   L2_ADAPTER_ARGS=""
