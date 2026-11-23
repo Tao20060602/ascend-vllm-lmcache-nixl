@@ -13,6 +13,13 @@ echo "==> 等待服务就绪(最长 30 分钟,模型首次加载较慢)..."
 ok=0
 for i in $(seq 1 180); do
   if curl -sf "$BASE/health" >/dev/null 2>&1; then ok=1; break; fi
+  # 快速失败:引擎进程已退出就不再等满 30 分钟
+  VP=$(cat "$RUNDIR/vllm.pid" 2>/dev/null || true)
+  if [ -n "${VP:-}" ] && ! kill -0 "$VP" 2>/dev/null; then
+    echo "[错误] vllm 进程已退出(PID=$VP)。日志末尾:" >&2
+    tail -n 30 "$RUNDIR/vllm.log" >&2 || true
+    exit 1
+  fi
   sleep 10
 done
 if [ "$ok" != "1" ]; then

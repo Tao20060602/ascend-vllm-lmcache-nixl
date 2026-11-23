@@ -48,6 +48,12 @@ if [ "$PROFILE" = "cpu" ]; then
   # CPU 档:上游 LMCache 进程内连接器,无独立 lmcache server 进程
   KV_CONNECTOR="LMCacheConnectorV1"
   echo "PROFILE=cpu: 连接器 $KV_CONNECTOR(进程内,不启动 lmcache server)"
+  # 容器 /dev/shm 常为 64 MiB,vLLM 引擎核共享内存环缓冲需 160 MiB 以上,不足则重挂载
+  SHM_FREE=$(df -k /dev/shm 2>/dev/null | awk 'NR==2{print $4}')
+  if [ -n "${SHM_FREE:-}" ] && [ "$SHM_FREE" -lt 262144 ]; then
+    echo "/dev/shm 可用 ${SHM_FREE} KiB 不足,重挂载为 8 GiB(sudo)"
+    sudo mount -o remount,size=8G /dev/shm || echo "[warn] /dev/shm 重挂载失败,vLLM 可能启动失败"
+  fi
 else
   KV_CONNECTOR="LMCacheMPConnector"
 fi
