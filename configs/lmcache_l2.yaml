@@ -1,0 +1,9 @@
+# LMCache 配置(L2 阶段:仅 host 内存 L1,无远端存储后端)
+# 说明:LMCache 的完整键位以你所用 LMCache 版本的文档为准(docs.lmcache.ai);
+# 本文件提供最小可启动骨架,性能参数在跑通后再按 x86 基线对齐。
+chunk_size: 128
+max_local_cache_size: 8        # GiB,LMCache server 的 L1(host 内存)容量
+extra_config:
+  # MP 模式下传输层由 LMCache-Ascend 接管(NPU 上默认 lmcache_driven 模式),
+  # 此处不配置远端后端。
+  {}

@@ -1,0 +1,7 @@
+run/
+models/
+storage/
+__pycache__/
+*.log
+*.pyc
+.venv/

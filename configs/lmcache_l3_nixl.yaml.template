@@ -1,0 +1,17 @@
+# LMCache 配置模板(L3 阶段:NIXL POSIX 存储后端)
+# 30_serve.sh 启动时会把 @STORAGE_DIR@ 替换为实际存储目录后渲染到 run/lmcache.yaml。
+#
+# 键名依据:docs.lmcache.ai(dev 版)kv_cache/storage_backends/nixl.html:
+#   nixl_backend: GDS | GDS_MT | POSIX | HF3FS | OBJ —— 本实验取 POSIX(POSIX AIO 队列实现)
+#   nixl_path / nixl_buffer_device / extra_config.nixl_backend_params
+# 上机前必做:与你 x86 侧已验证的 lmcache+nixl 配置逐键对齐(lpl 的 nixl_store 配置),
+# 以 x86 已跑通的配置为准;若 NPU 上 LMCache-Ascend 的 server 不接受本文件,
+# 这本身就是 A 臂的核心测试结论之一,记录报错原文进报告。
+chunk_size: 128
+max_local_cache_size: 8        # GiB,L1(host 内存)
+nixl_backend: POSIX
+nixl_path: @STORAGE_DIR@
+nixl_buffer_device: cpu
+extra_config:
+  nixl_backend_params:
+    file_path: @STORAGE_DIR@
