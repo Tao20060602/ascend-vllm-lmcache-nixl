@@ -62,6 +62,14 @@ if [ "$PROFILE" = "cpu" ]; then
   fi
 fi
 
+# kv-transfer-config:CPU 平台没有 CUDA VMM,显式关闭 lmcache.mp.use_vmm_api
+# (LEGACY_IPC 模式),否则 vllm 校验直接拒绝(extensible KV cache 仅 CUDA/ROCm)
+if [ "$PROFILE" = "cpu" ]; then
+  KV_TF_CONFIG="{\"kv_connector\": \"$KV_CONNECTOR\", \"kv_role\": \"kv_both\", \"kv_connector_extra_config\": {\"lmcache.mp.use_vmm_api\": false}}"
+else
+  KV_TF_CONFIG="{\"kv_connector\": \"$KV_CONNECTOR\", \"kv_role\": \"kv_both\"}"
+fi
+
 # 2) 启动 lmcache server(MP 模式必需的独立进程;CPU/NPU 共用上游 CLI)
 nohup lmcache server \
   --chunk-size "$CHUNK_SIZE" \
@@ -98,7 +106,7 @@ nohup vllm serve "$MODEL_DIR" \
   --no-enable-prefix-caching \
   --enforce-eager \
   --port "$PORT" \
-  --kv-transfer-config "{\"kv_connector\": \"$KV_CONNECTOR\", \"kv_role\": \"kv_both\"}" \
+  --kv-transfer-config "$KV_TF_CONFIG" \
   > "$RUNDIR/vllm.log" 2>&1 < /dev/null &
 echo $! > "$RUNDIR/vllm.pid"
 sleep 8
