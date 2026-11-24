@@ -47,7 +47,7 @@ echo "==> [2/6] 源码安装 vllm ($VLLM_PIN, VLLM_TARGET_DEVICE=empty,不编译
 if [ ! -d vllm ]; then
   git clone --depth 1 --branch "v$VLLM_PIN" https://github.com/vllm-project/vllm.git vllm
 fi
-pip install -U pip setuptools wheel ninja
+pip install -U pip setuptools wheel ninja "cmake>=3.22" pybind11 setuptools_scm setuptools-rust
 VLLM_TARGET_DEVICE=empty pip install -e ./vllm --extra-index-url "$PYTORCH_INDEX"
 
 echo "==> [3/6] 安装 vllm-ascend(torch 与 torch_npu 作为依赖自动安装)"
