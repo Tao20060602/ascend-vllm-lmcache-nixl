@@ -17,6 +17,17 @@ LOGDIR="$SCRIPT_DIR/../run"
 mkdir -p "$WORKROOT" "$LOGDIR"
 cd "$WORKROOT"
 
+echo "==> [0/6] 检测镜像是否已预装 vllm/vllm-ascend(如官方镜像 VLLM-Ascend-v0.26.0rc-CANN9.1.0-arm)"
+if python3 -c "import vllm, vllm_ascend" 2>/dev/null; then
+  SKIP_BUILD=1
+  echo "    镜像已预装整栈,跳过克隆与源码构建,直接复用厂商对齐版本"
+  pip list 2>/dev/null | grep -Ei '^(vllm|torch)' | head -6
+else
+  SKIP_BUILD=0
+  echo "    未预装,走源码安装路径"
+fi
+
+if [ "$SKIP_BUILD" = "0" ]; then
 echo "==> [1/6] 克隆 vllm-ascend ($VLLM_ASCEND_REF)"
 if [ ! -d vllm-ascend ]; then
   # --recurse-submodules:A3 源码安装需要子模块(官方文档要求)
@@ -43,6 +54,7 @@ echo "==> [3/6] 安装 vllm-ascend(torch 与 torch_npu 作为依赖自动安装)
 # 注:若 csrc 自定义算子编译阶段提示需要 SOC_VERSION,按 vllm-ascend 该 tag 文档设置 A3 对应值
 pip install -v --no-build-isolation -e ./vllm-ascend \
   --extra-index-url "$PYTORCH_INDEX" --extra-index-url "$ASCEND_PYPI"
+fi
 # 注:Triton-Ascend / FLA-NPU 是否需要单独安装,以 vllm-ascend 该 tag 文档为准;
 # 若文档要求,在此追加:pip install triton-ascend==<文档版本>
 

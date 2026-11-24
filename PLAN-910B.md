@@ -14,6 +14,8 @@
 
 **选镜像原则(第 0 步就定):优先选 CANN 9.0.x 的 A2 镜像。**若只有 cann_8.5.2-py3.11-A2-arm:两个臂的现代栈都不满足(A 臂 LMCache-Ascend 需要 vllm≥0.23;B 臂 910b 路线要 CANN 9.0.0)。届时二选一:(a) 容器内升级 CANN toolkit 到 9.0.0 + `Ascend-cann-kernels-910b`(依赖宿主 HDK ≥25.5,先看 00_env_check 输出的驱动版本再决定);(b) 记录限制,只做引擎级冒烟。
 
+**2026-11-24 更新:发现整栈预装镜像 `VLLM-Ascend-v0.26.0rc-CANN 9.1.0-arm-ssh`(GitCode 环境创建页可选)= 当前首选。**理由:vllm-ascend v0.26.0rc ≥ 0.23 满足 LMCache-Ascend 硬性下限;CANN 9.1.0 与 SGLang 当前套件对齐;厂商已对齐 vllm/torch/torch_npu/CANN,免源码编译(10_install_stack.sh 已加预装检测,自动跳过构建)。注意:rc 为候选发布版,报告如实记录;镜像内 Python 版本进环境后确认(B 臂 9.1.0 套件要 3.12)。
+
 ## 阶段划分与验收标准
 
 ### P0 环境体检与版本判读(约 30 分钟)
